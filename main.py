@@ -18,13 +18,13 @@ today = date.today()
 
 # Get current season based on date
 def get_season():
-    cdate = today.strftime('%m-%d')  # Current date
+    _date = today.strftime('%m-%d')  # Current date
     year = today.year  # Current year
 
     season_end = '05-31'  # End of season
 
     # Determine season
-    if cdate <= season_end:
+    if _date <= season_end:
         season = year - 1
         print(str(today) + ' falls within the ' + str(season) + '/' + str(year) + ' season')
     else:
@@ -68,9 +68,9 @@ def get_results():
             start_date = datetime.strptime(match['StartDate'], '%Y-%m-%dT%H:%M:%SZ')  # Convert to datetime
             scheduled_date = datetime.strptime(match['ScheduledDate'], '%Y-%m-%dT%H:%M:%SZ')  # Convert to datetime
             if start_date.date() == today or scheduled_date.date() == today:  # Match either started or continued today
-                for round in rounds:
-                    if match['EventID'] == round['EventID'] and match['Round'] == round['Round']:
-                        match['Round'] = round['RoundName']
+                for _round in rounds:
+                    if match['EventID'] == _round['EventID'] and match['Round'] == _round['Round']:
+                        match['Round'] = _round['RoundName']
                         matches_today.append(match)
 
     display_matches(matches_today, players)
@@ -115,19 +115,34 @@ def mail_results(matches):
 
     # Create HTML table for each event
     for event in live_events:
-        html += '<table><thead><tr><th colspan="6">' + event['name'] + '</th></tr></thead><tbody>'
-        # Create table row for each match
-        for match in matches:
-            if match['EventID'] == event['id']:
-                html += '<tr><td style="padding-right:20px">' + match['Round'] + '</td><td><img style="vertical-align:middle" src="http://www.snooker.org/res/scorekeeper/gfx/flags/icondrawer/16/' + match['Player1Country'] + '.png" alt="' + match['Player1Country'] + '"/></td><td>' + match['Player1FullName'] + '</td><td>' + str(match['Score1']) + '-' + str(match['Score2']) + '</td><td><img style="vertical-align:middle" src="http://www.snooker.org/res/scorekeeper/gfx/flags/icondrawer/16/' + match['Player2Country'] + '.png" alt="' + match['Player2Country'] + '"</td><td>' + match['Player2FullName'] + '</td></tr>'
-        html += '</tbody></table>'
+        # Check if event has matches
+        if any(d['EventID'] == event['id'] for d in matches):
+            html += '<table><thead><tr><th colspan="6">' + event['name'] + '</th></tr></thead><tbody>'
+            # Create table row for each match
+            for match in matches:
+                if match['EventID'] == event['id']:
+                    html += '<tr><td style="padding-right:20px">' + match['Round'] + '</td><td><img style="vertical-align:middle" src="http://www.snooker.org/res/scorekeeper/gfx/flags/icondrawer/16/' + match['Player1Country'] + '.png" alt="' + match['Player1Country'] + '"/></td><td style="font-weight:' + ('bold' if match['Player1ID'] == match['WinnerID'] else 'normal') + '">' + match['Player1FullName'] + '</td><td>' + str(match['Score1']) + '-' + str(match['Score2']) + '</td><td><img style="vertical-align:middle" src="http://www.snooker.org/res/scorekeeper/gfx/flags/icondrawer/16/' + match['Player2Country'] + '.png" alt="' + match['Player2Country'] + '"</td><td style="font-weight:' + ('bold' if match['Player2ID'] == match['WinnerID'] else 'normal') + '">' + match['Player2FullName'] + '</td></tr>'
+            html += '</tbody></table>'
 
     contents.append(html)
 
-    yag.send(os.environ.get('recipient'), 'Daily snooker results', contents)  # Send mail
+    yag.send(os.environ.get('recipient').split(','), 'Daily snooker results', contents)  # Send mail
 
     print('Done!')
 
 
+# Run every 24 hours
+def run_daily():
+    import schedule
+    import time
+
+    # Run at end of each day
+    schedule.every().day.at("23:59").do(get_season)
+
+    while True:
+        schedule.run_pending()
+        time.sleep(60)  # Check time every 60 seconds
+
+
 # Initialize
-get_season()
+run_daily()
